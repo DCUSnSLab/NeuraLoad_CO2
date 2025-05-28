@@ -14,6 +14,10 @@ IPCC_CO2_per_L = 74.1 * 35.8  # g CO₂ / L ≈ 2654.8 g/L
 # 차량 제원 CO₂ (가정): 133 g/km
 SPEC_CO2_per_km = 133.0  # g/km
 
+# === CO₂ 분자량 및 부피 ===
+M_CO2 = 44.01       # g/mol
+V_molar = 22.4      # L/mol at STP
+
 # 숫자만 추출하는 함수
 def extract_numeric(value):
     match = re.search(r"[-+]?[0-9]*\.?[0-9]+", str(value))
@@ -60,6 +64,26 @@ def calculate_co2_from_maf(csv_path):
     g_per_km_maf = total_co2_maf / total_km if total_km > 0 else None
     g_per_km_ipcc = total_co2_ipcc / total_km if total_km > 0 else None
 
+    # ✅ PPM 변환 추가 (공기 체적 기준)
+    vehicle_width_m = 1.8  # 차량 폭 (예: 뉴산타페)
+    vehicle_height_m = 1.68  # 차량 높이
+
+    co2_mol = total_co2_maf / M_CO2
+    co2_volume_L = co2_mol * 22.4  # CO₂ 부피 (STP 기준)
+
+    air_volume_m3 = vehicle_width_m * vehicle_height_m * (total_km * 1000)  # m³
+    air_volume_L = air_volume_m3 * 1000  # L
+
+    ppm = (co2_volume_L / air_volume_L) * 1_000_000
+
+    # ✅ 시간 단위 배출량 기반 PPM 계산 (정차 상태 가정)
+    confined_volume_L = 5000  # 예: 5m³ 밀폐 공간
+
+    co2_g_per_sec = total_co2_maf / total_time_sec
+    co2_mol_per_sec = co2_g_per_sec / M_CO2
+    co2_L_per_sec = co2_mol_per_sec * V_molar
+    ppm_per_sec = (co2_L_per_sec / confined_volume_L) * 1_000_000
+
     # 출력
     print(f"\n🧾 주행 통계")
     print(f"총 주행 거리: {total_km:.3f} km")
@@ -76,6 +100,11 @@ def calculate_co2_from_maf(csv_path):
     print(f"1. 제원 기준                             : 133.00 g/km")
     print(f"2. IPCC 방식                             : {g_per_km_ipcc:.2f} g/km")
     print(f"3. MAF 기반                              : {g_per_km_maf:.2f} g/km")
+    print(f"\n🌍 주행 구간 평균 CO₂ 농도 (ppm 기준 추정)")
+    print(f"추정 CO₂ 평균 농도: {ppm:.2f} ppm")
+
+    print(f"\n🚗 정차 상태 공기 공간 내 CO₂ 농도 증가 속도 (가정: 5m³)")
+    print(f"1초당 CO₂ 농도 증가량: {ppm_per_sec:.2f} ppm/sec")
 
     return df[['timestamp', 'MAF', 'SPEED', 'delta_t', 'CO2_g', 'CO2_cumulative_g', 'distance_km', 'cumulative_km']]
 
